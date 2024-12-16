@@ -1,4 +1,3 @@
-from scraper import extract_comments 
 from translation import translate
 import streamlit as st
 import os
@@ -13,7 +12,8 @@ from transformers import pipeline
 import random
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 import concurrent.futures
-
+from scraper_v2 import extract_comments_v2
+from translation_v2 import translate_and_convert_to_arabic 
 # Load the tokenizer
 model_path = r"models/fine_tuned_tunibert"  # Use raw string to avoid issues with backslashes on Windows
 
@@ -36,24 +36,25 @@ def apply_model_to_comment(comment):
     return label_map[int(label.split('_')[1])]  # Extract label from 'LABEL_X' and map it
 
 # Function to run parallel translation and classification
-def process_comments(post_id):
+def process_comments(post_url):
     # Step 1: Extract comments
-    comments = extract_comments(post_id)  # Pass the post ID to extract comments
+    comments = extract_comments_v2(post_url)  # Pass the post ID to extract comments
     
     # Step 2: Translate comments in parallel
     with concurrent.futures.ThreadPoolExecutor() as executor:
-        translated_comments = list(executor.map(translate, comments))  # Assuming `translate` function is defined elsewhere
-    
+        translated_comments = list(executor.map(translate_and_convert_to_arabic, comments))  # Assuming `translate` function is defined elsewhere
+     
     # Step 3: Show the translated comments in Streamlit
     st.write("Translated Comments:")
-    for i, translated_comment in enumerate(translated_comments):
-        st.write(f"{i+1}. {translated_comment}")
 
     # Step 4: Apply the model to each translated comment
     with concurrent.futures.ThreadPoolExecutor() as executor:
         predicted_labels = list(executor.map(apply_model_to_comment, translated_comments))
-    
+    for i, translated_comment in enumerate(translated_comments):
+        st.write(f"{i+1}. {translated_comment}, prediction : {predicted_labels[i]}")
+
     # Step 5: Count occurrences of each class
+
     class_counts = {class_name: predicted_labels.count(class_name) for class_name in label_map.values()}
     
     # Step 6: Display the class counts in Streamlit
@@ -62,8 +63,8 @@ def process_comments(post_id):
 
 # Streamlit input to set post ID
 st.title("Post Comment Classification")
-post_id = st.text_input("Enter Post ID:")
+post_url = st.text_input("Enter post url:")
 
 # Run the process when the post ID is provided
-if post_id:
-    process_comments(post_id)
+if post_url:
+    process_comments(post_url)
